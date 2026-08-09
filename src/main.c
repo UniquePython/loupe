@@ -6,76 +6,86 @@
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
 
-#define WINDOW_WIDTH 900
-#define WINDOW_HEIGHT 600
-#define DISPLAY_STRING "Example X11 Code"
-
-static Display *display;
-static int screen;
-static Window win;
-static Atom WMDeleteMessage;
-static bool running;
-
-static void createWindow(void)
+typedef struct App
 {
-    display = XOpenDisplay(NULL);
-    if (display == NULL)
+    bool running;
+    Display *display;
+    int screen;
+    Window win;
+    Atom wmDeleteMessage;
+    const char *message;
+
+} App;
+
+static App createApp(int width, int height, const char *message)
+{
+    App result = {0};
+
+    result.message = message;
+    result.display = XOpenDisplay(NULL);
+    if (result.display == NULL)
     {
         fprintf(stderr, "Failed to open display\n");
         exit(1);
     }
 
-    screen = XDefaultScreen(display);
-    Window rootwin = XRootWindow(display, screen);
-    win = XCreateSimpleWindow(display, rootwin,
-                              100, 10,
-                              WINDOW_WIDTH, WINDOW_HEIGHT, 5,
-                              XBlackPixel(display, screen), XWhitePixel(display, screen));
+    result.screen = XDefaultScreen(result.display);
+    Window rootwin = XRootWindow(result.display, result.screen);
+    result.win = XCreateSimpleWindow(result.display, rootwin,
+                                     100, 10,
+                                     (unsigned int)width, (unsigned int)height, 5,
+                                     XBlackPixel(result.display, result.screen), XWhitePixel(result.display, result.screen));
 
     XSizeHints sizeHints = {
         .flags = PSize | PMinSize | PMaxSize,
-        .min_width = WINDOW_WIDTH,
-        .max_width = WINDOW_WIDTH,
-        .min_height = WINDOW_HEIGHT,
-        .max_height = WINDOW_HEIGHT,
+        .min_width = width,
+        .max_width = width,
+        .min_height = height,
+        .max_height = height,
     };
 
-    (void)XSetStandardProperties(display, win, "Simple Window", "window", 0, NULL, 0, &sizeHints);
-    (void)XSelectInput(display, win, ButtonPressMask | KeyPressMask | PointerMotionMask | ExposureMask);
-    (void)XMapWindow(display, win);
+    (void)XSetStandardProperties(result.display, result.win, "Simple Window", "window", 0, NULL, 0, &sizeHints);
+    (void)XSelectInput(result.display, result.win, ButtonPressMask | KeyPressMask | PointerMotionMask | ExposureMask);
+    (void)XMapWindow(result.display, result.win);
 
-    WMDeleteMessage = XInternAtom(display, "WM_DELETE_WINDOW", False);
-    (void)XSetWMProtocols(display, win, &WMDeleteMessage, 1);
+    result.wmDeleteMessage = XInternAtom(result.display, "WM_DELETE_WINDOW", False);
+    (void)XSetWMProtocols(result.display, result.win, &result.wmDeleteMessage, 1);
 
-    running = true;
+    result.running = true;
+
+    return result;
 }
 
-static void closeWindow(void)
+static void closeApp(const App *app)
 {
-    (void)XDestroyWindow(display, win);
-    (void)XCloseDisplay(display);
+    (void)XDestroyWindow(app->display, app->win);
+    (void)XCloseDisplay(app->display);
 }
 
-static void drawScreen(void)
+static void drawApp(const App *app)
 {
-    (void)XDrawString(display, win, DefaultGC(display, screen), 10, 50, DISPLAY_STRING, (int)strlen(DISPLAY_STRING));
+    (void)XDrawString(app->display,
+                      app->win,
+                      DefaultGC(app->display, app->screen),
+                      10, 50,
+                      app->message, (int)strlen(app->message));
 }
 
-static void handleEvent(void)
+static void handleEvent(App *app)
 {
     XEvent xev;
 
-    (void)XNextEvent(display, &xev);
+    (void)XNextEvent(app->display, &xev);
 
     switch (xev.type)
     {
     case Expose:
-        drawScreen();
+        drawApp(app);
         break;
 
     case ClientMessage:
-        if ((Atom)(xev.xclient.data.l[0]) == WMDeleteMessage)
-            running = false;
+        if ((Atom)(xev.xclient.data.l[0]) == app->wmDeleteMessage)
+            app->running = false;
         break;
 
     case KeyPress:
@@ -98,9 +108,9 @@ static void handleEvent(void)
 
 int main(void)
 {
-    createWindow();
-    while (running)
-        handleEvent();
-    closeWindow();
+    App app = createApp(900, 600, "App!");
+    while (app.running)
+        handleEvent(&app);
+    closeApp(&app);
     return 0;
 }
