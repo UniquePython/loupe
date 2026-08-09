@@ -8,23 +8,16 @@
 
 #define WINDOW_WIDTH 900
 #define WINDOW_HEIGHT 600
+#define DISPLAY_STRING "Example X11 Code"
 
-static int width, height;
 static Display *display;
 static int screen;
-static int depth;
 static Window win;
-static XSizeHints sizeHints;
 static Atom WMDeleteMessage;
 static bool running;
-static XEvent xev;
-static const char *displayString = "Example X11 Code";
 
 static void createWindow(void)
 {
-    width = WINDOW_WIDTH;
-    height = WINDOW_HEIGHT;
-
     display = XOpenDisplay(NULL);
     if (display == NULL)
     {
@@ -33,24 +26,25 @@ static void createWindow(void)
     }
 
     screen = XDefaultScreen(display);
-    depth = XDefaultDepth(display, screen);
     Window rootwin = XRootWindow(display, screen);
     win = XCreateSimpleWindow(display, rootwin,
                               100, 10,
-                              (unsigned int)width, (unsigned int)height, 5,
+                              WINDOW_WIDTH, WINDOW_HEIGHT, 5,
                               XBlackPixel(display, screen), XWhitePixel(display, screen));
 
-    sizeHints.flags = PSize | PMinSize | PMaxSize;
-    sizeHints.min_width = width;
-    sizeHints.max_width = width;
-    sizeHints.min_height = height;
-    sizeHints.max_height = height;
+    XSizeHints sizeHints = {
+        .flags = PSize | PMinSize | PMaxSize,
+        .min_width = WINDOW_WIDTH,
+        .max_width = WINDOW_WIDTH,
+        .min_height = WINDOW_HEIGHT,
+        .max_height = WINDOW_HEIGHT,
+    };
 
     (void)XSetStandardProperties(display, win, "Simple Window", "window", 0, NULL, 0, &sizeHints);
     (void)XSelectInput(display, win, ButtonPressMask | KeyPressMask | PointerMotionMask | ExposureMask);
     (void)XMapWindow(display, win);
 
-    WMDeleteMessage = XInternAtom(display, "WM_DELETE_WINDOW", false);
+    WMDeleteMessage = XInternAtom(display, "WM_DELETE_WINDOW", False);
     (void)XSetWMProtocols(display, win, &WMDeleteMessage, 1);
 
     running = true;
@@ -64,11 +58,13 @@ static void closeWindow(void)
 
 static void drawScreen(void)
 {
-    (void)XDrawString(display, win, DefaultGC(display, screen), 10, 50, displayString, (int)strlen(displayString));
+    (void)XDrawString(display, win, DefaultGC(display, screen), 10, 50, DISPLAY_STRING, (int)strlen(DISPLAY_STRING));
 }
 
 static void handleEvent(void)
 {
+    XEvent xev;
+
     (void)XNextEvent(display, &xev);
 
     switch (xev.type)
