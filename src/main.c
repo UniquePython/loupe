@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
@@ -13,10 +14,22 @@ typedef struct App
     Display *display;
     int screen;
     Window win;
+    Colormap cmap;
+    GLXContext glc;
     Atom wmDeleteMessage;
     const char *message;
 
 } App;
+
+static void die(const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    fputc('\n', stderr);
+    va_end(args);
+    exit(EXIT_FAILURE);
+}
 
 static App createApp(int width, int height, const char *message)
 {
@@ -25,17 +38,45 @@ static App createApp(int width, int height, const char *message)
     result.message = message;
     result.display = XOpenDisplay(NULL);
     if (result.display == NULL)
-    {
-        fprintf(stderr, "Failed to open display\n");
-        exit(1);
-    }
+        die("Failed to open display");
 
     result.screen = XDefaultScreen(result.display);
+
+    int glxMajor, glxMinor;
+    if (!glXQueryVersion(result.display, &glxMajor, &glxMinor))
+        die("Failed to query GLX version");
+    if (glxMajor < 1 || (glxMajor == 1 && glxMinor < 3))
+        die("Invalid GLX version. Expected >= 1.3, found %d.%d", glxMajor, glxMinor);
+    printf("GLX version: %d.%d\n", glxMajor, glxMinor);
+    printf("GLX extension: %s\n", glXQueryExtensionsString(result.display, result.screen));
+
+    int att[] = {GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None};
+
     Window rootwin = XRootWindow(result.display, result.screen);
-    result.win = XCreateSimpleWindow(result.display, rootwin,
-                                     100, 10,
-                                     (unsigned int)width, (unsigned int)height, 5,
-                                     XBlackPixel(result.display, result.screen), XWhitePixel(result.display, result.screen));
+    XVisualInfo *vi = glXChooseVisual(result.display, result.screen, att);
+    if (vi == NULL)
+        die("No appropriate visual found.");
+    printf("Visual %lu selected\n", vi->visualid);
+
+    result.cmap = XCreateColormap(result.display, rootwin, vi->visual, AllocNone);
+    XSetWindowAttributes swa = {
+        .colormap = result.cmap,
+        .event_mask = ButtonPressMask | KeyPressMask | PointerMotionMask | ExposureMask,
+    };
+
+    result.win = XCreateWindow(result.display, rootwin,
+                               0, 0, (unsigned int)width, (unsigned int)height, 0,
+                               vi->depth, InputOutput, vi->visual,
+                               CWColormap | CWEventMask, &swa);
+
+    result.glc = glXCreateContext(result.display, vi, NULL, GL_TRUE);
+    XFree(vi);
+    if (result.glc == NULL)
+        die("Failed to create GLX context");
+    if (!glXMakeCurrent(result.display, result.win, result.glc))
+        die("Failed to make GLX context current");
+
+    glEnable(GL_DEPTH_TEST);
 
     XSizeHints sizeHints = {
         .flags = PSize | PMinSize | PMaxSize,
@@ -46,8 +87,8 @@ static App createApp(int width, int height, const char *message)
     };
 
     (void)XSetStandardProperties(result.display, result.win, "Simple Window", "window", 0, NULL, 0, &sizeHints);
-    (void)XSelectInput(result.display, result.win, ButtonPressMask | KeyPressMask | PointerMotionMask | ExposureMask);
     (void)XMapWindow(result.display, result.win);
+    (void)XStoreName(result.display, result.win, "Wordpress Application");
 
     result.wmDeleteMessage = XInternAtom(result.display, "WM_DELETE_WINDOW", False);
     (void)XSetWMProtocols(result.display, result.win, &result.wmDeleteMessage, 1);
@@ -59,17 +100,19 @@ static App createApp(int width, int height, const char *message)
 
 static void closeApp(const App *app)
 {
+    XFreeColormap(app->display, app->cmap);
+    (void)glXMakeCurrent(app->display, None, NULL);
+    glXDestroyContext(app->display, app->glc);
     (void)XDestroyWindow(app->display, app->win);
     (void)XCloseDisplay(app->display);
 }
 
 static void drawApp(const App *app)
 {
-    (void)XDrawString(app->display,
-                      app->win,
-                      DefaultGC(app->display, app->screen),
-                      10, 50,
-                      app->message, (int)strlen(app->message));
+    XWindowAttributes gwa = {0};
+    (void)XGetWindowAttributes(app->display, app->win, &gwa);
+    glViewport(0, 0, gwa.width, gwa.height);
+    glXSwapBuffers(app->display, app->win);
 }
 
 static void handleEvent(App *app)
@@ -110,14 +153,8 @@ static void handleEvent(App *app)
 int main(void)
 {
     App app = createApp(900, 600, "App!");
-
-    int glxMajor, glxMinor;
-    (void)glXQueryVersion(app.display, &glxMajor, &glxMinor);
-    printf("GLX version %d.%d\n", glxMajor, glxMinor);
-
     while (app.running)
         handleEvent(&app);
     closeApp(&app);
-
     return 0;
 }
