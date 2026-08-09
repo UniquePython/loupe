@@ -36,9 +36,10 @@ WARNINGS := \
 	-Winit-self
 
 CFLAGS := -std=c11 -g $(WARNINGS)
-CFLAGS += -Iinclude # Add cflags using pkg-config here later
+CFLAGS += -Iinclude
+CFLAGS += $(shell pkg-config --cflags x11)
 
-LDLIBS := # Add libs using pkg-config here later
+LDLIBS := $(shell pkg-config --libs x11)
 
 .PHONY: all clean run rebuild
 
