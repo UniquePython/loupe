@@ -7,6 +7,7 @@
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
 #include <GL/glx.h>
+#include <GL/glu.h>
 
 typedef struct App
 {
@@ -88,7 +89,7 @@ static App createApp(int width, int height, const char *message)
 
     (void)XSetStandardProperties(result.display, result.win, "Simple Window", "window", 0, NULL, 0, &sizeHints);
     (void)XMapWindow(result.display, result.win);
-    (void)XStoreName(result.display, result.win, "Wordpress Application");
+    (void)XStoreName(result.display, result.win, "Window Application");
 
     result.wmDeleteMessage = XInternAtom(result.display, "WM_DELETE_WINDOW", False);
     (void)XSetWMProtocols(result.display, result.win, &result.wmDeleteMessage, 1);
@@ -100,11 +101,27 @@ static App createApp(int width, int height, const char *message)
 
 static void closeApp(const App *app)
 {
-    XFreeColormap(app->display, app->cmap);
     (void)glXMakeCurrent(app->display, None, NULL);
     glXDestroyContext(app->display, app->glc);
     (void)XDestroyWindow(app->display, app->win);
+    (void)XFreeColormap(app->display, app->cmap);
     (void)XCloseDisplay(app->display);
+}
+
+static void drawAQuad(void)
+{
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glBegin(GL_QUADS);
+    glColor3f(1.0, 0.0, 0.0);
+    glVertex3f(-0.75, -0.75, 0.0);
+    glColor3f(0.0, 1.0, 0.0);
+    glVertex3f(0.75, -0.75, 0.0);
+    glColor3f(0.0, 0.0, 1.0);
+    glVertex3f(0.75, 0.75, 0.0);
+    glColor3f(1.0, 1.0, 0.0);
+    glVertex3f(-0.75, 0.75, 0.0);
+    glEnd();
 }
 
 static void drawApp(const App *app)
@@ -119,12 +136,25 @@ static void handleEvent(App *app)
 {
     XEvent xev;
 
+    glClearColor(1.0, 1.0, 1.0, 1.0);
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(-1.0, 1.0, -1.0, 1.0, 1.0, 20.0);
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    gluLookAt(0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+
+    drawAQuad();
+    drawApp(app);
+
     (void)XNextEvent(app->display, &xev);
 
     switch (xev.type)
     {
     case Expose:
-        drawApp(app);
+        puts("Expose event");
         break;
 
     case ClientMessage:

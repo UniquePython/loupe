@@ -39,7 +39,7 @@ CFLAGS := -std=c11 -g $(WARNINGS)
 CFLAGS += -Iinclude
 CFLAGS += $(shell pkg-config --cflags x11)
 
-LDLIBS := $(shell pkg-config --libs x11 gl)
+LDLIBS := $(shell pkg-config --libs x11 gl glu)
 
 .PHONY: all clean run rebuild
 
