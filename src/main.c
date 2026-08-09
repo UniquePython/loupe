@@ -5,6 +5,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
+#include <GL/glx.h>
 
 typedef struct App
 {
@@ -109,8 +110,14 @@ static void handleEvent(App *app)
 int main(void)
 {
     App app = createApp(900, 600, "App!");
+
+    int glxMajor, glxMinor;
+    (void)glXQueryVersion(app.display, &glxMajor, &glxMinor);
+    printf("GLX version %d.%d\n", glxMajor, glxMinor);
+
     while (app.running)
         handleEvent(&app);
     closeApp(&app);
+
     return 0;
 }
